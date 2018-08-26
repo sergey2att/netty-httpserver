@@ -45,12 +45,14 @@ public class UriHandler extends SimpleChannelInboundHandler<Object> {
         UriHandlerBase handler;
         if (msg instanceof FullHttpRequest) {
             FullHttpRequest request = (FullHttpRequest) msg;
-            if (!handlers.keySet().contains(request.uri())){
+            QueryStringDecoder queryStringDecoder = new QueryStringDecoder(request.uri());
+
+            if (!handlers.keySet().contains(queryStringDecoder.path())){
                 throw new IllegalArgumentException(
                   "It works"
                 );
             }
-            QueryStringDecoder queryStringDecoder = new QueryStringDecoder(request.uri());
+
             buf.setLength(0);
             String context = queryStringDecoder.path();
             handler = handlers.get(context);
