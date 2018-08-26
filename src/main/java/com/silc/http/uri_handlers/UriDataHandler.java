@@ -1,8 +1,8 @@
-package com.silchenko.httpserver.uri_handlers;
+package com.silc.http.uri_handlers;
 
 
-import com.silchenko.httpserver.HistoryHolder;
-import com.silchenko.httpserver.Mapped;
+import com.silc.http.HistoryHolder;
+import com.silc.http.Mapped;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.QueryStringDecoder;
 import io.netty.util.CharsetUtil;

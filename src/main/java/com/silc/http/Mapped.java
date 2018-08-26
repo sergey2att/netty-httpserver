@@ -1,4 +1,4 @@
-package com.silchenko.httpserver;
+package com.silc.http;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;

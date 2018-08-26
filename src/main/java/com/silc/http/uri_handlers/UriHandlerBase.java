@@ -1,4 +1,4 @@
-package com.silchenko.httpserver.uri_handlers;
+package com.silc.http.uri_handlers;
 
 
 import io.netty.handler.codec.http.FullHttpRequest;

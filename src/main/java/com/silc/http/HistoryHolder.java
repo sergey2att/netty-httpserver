@@ -1,4 +1,4 @@
-package com.silchenko.httpserver;
+package com.silc.http;
 
 import java.util.ArrayList;
 import java.util.List;

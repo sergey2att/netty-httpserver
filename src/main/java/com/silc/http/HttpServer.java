@@ -1,6 +1,6 @@
-package com.silchenko.httpserver;
+package com.silc.http;
 
-import com.silchenko.httpserver.uri_handlers.UriHandlerBase;
+import com.silc.http.uri_handlers.UriHandlerBase;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelInitializer;
