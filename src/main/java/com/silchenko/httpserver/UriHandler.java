@@ -1,9 +1,7 @@
 package com.silchenko.httpserver;
 
 
-import com.silchenko.httpserver.Mapped;
-import com.silchenko.httpserver.ReflectionTools;
-import com.silchenko.httpserver.handlers.UriHandlerBase;
+import com.silchenko.httpserver.uri_handlers.UriHandlerBase;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFuture;
@@ -14,8 +12,8 @@ import io.netty.handler.codec.http.*;
 import io.netty.util.CharsetUtil;
 
 import java.lang.annotation.Annotation;
-import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
@@ -23,24 +21,17 @@ import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 import static io.netty.handler.codec.rtsp.RtspHeaderNames.CONTENT_TYPE;
 import static io.netty.handler.codec.rtsp.RtspResponseStatuses.BAD_REQUEST;
 
-public class ServerHandler extends SimpleChannelInboundHandler<Object> {
+public class UriHandler extends SimpleChannelInboundHandler<Object> {
 
     private final StringBuilder buf = new StringBuilder();
     private Map<String, UriHandlerBase> handlers = new HashMap<>();
 
-    @SuppressWarnings("unchecked")
-    public ServerHandler(HistoryHolder historyHolder) {
+    public UriHandler(List<? extends UriHandlerBase> handlersH) {
         if (handlers.size() == 0) {
-            try {
-                for (Class c : ReflectionTools.getClasses(getClass().getPackage().getName() + ".handlers")) {
-                    Annotation annotation = c.getAnnotation(Mapped.class);
-                    if (annotation != null) {
-                        handlers.put(((Mapped) annotation).uri(), (UriHandlerBase) c.getDeclaredConstructor(HistoryHolder.class).newInstance(historyHolder));
-                    }
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
+            handlersH.forEach(v -> {
+                Annotation annotation = v.getClass().getAnnotation(Mapped.class);
+                handlers.put(((Mapped) annotation).uri(), v);
+            });
         }
     }
 
@@ -54,6 +45,11 @@ public class ServerHandler extends SimpleChannelInboundHandler<Object> {
         UriHandlerBase handler;
         if (msg instanceof FullHttpRequest) {
             FullHttpRequest request = (FullHttpRequest) msg;
+            if (!handlers.keySet().contains(request.uri())){
+                throw new IllegalArgumentException(
+                  "It works"
+                );
+            }
             QueryStringDecoder queryStringDecoder = new QueryStringDecoder(request.uri());
             buf.setLength(0);
             String context = queryStringDecoder.path();
@@ -68,9 +64,9 @@ public class ServerHandler extends SimpleChannelInboundHandler<Object> {
             );
             response.headers().set(CONTENT_TYPE, handler != null ? handler.getContentType() : "text/plain; charset=UTF-8");
             ctx.writeAndFlush(response);*/
-           writeResponse(request, ctx, handler);
+            writeResponse(request, ctx, handler);
 
-          //  sendHttpResponse(ctx, request, new DefaultFullHttpResponse(HTTP_1_1, HttpResponseStatus.ACCEPTED));
+            //  sendHttpResponse(ctx, request, new DefaultFullHttpResponse(HTTP_1_1, HttpResponseStatus.ACCEPTED));
         }
     }
 
@@ -84,9 +80,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<Object> {
 
 
         FullHttpResponse response = new DefaultFullHttpResponse(HTTP_1_1, msg.decoderResult().isSuccess()
-                ? OK
-                : BAD_REQUEST,
-                Unpooled.copiedBuffer(buf.toString(), CharsetUtil.UTF_8)
+                ? OK : BAD_REQUEST, Unpooled.copiedBuffer(buf.toString(), CharsetUtil.UTF_8)
 
         );
         response.headers().set(CONTENT_TYPE, handler != null ? handler.getContentType() : "text/plain; charset=UTF-8");
@@ -99,12 +93,12 @@ public class ServerHandler extends SimpleChannelInboundHandler<Object> {
         // Write the response.
         ctx.write(response);
 
-     //   if (!keepAlive)  {
-            // If keep-alive is off, close the connection once the content is fully written.
-            ctx.writeAndFlush(Unpooled.EMPTY_BUFFER).addListener(ChannelFutureListener.CLOSE);
-      //  } else {
-       //     ctx.flush();
-       // }
+        //   if (!keepAlive)  {
+        // If keep-alive is off, close the connection once the content is fully written.
+        ctx.writeAndFlush(Unpooled.EMPTY_BUFFER).addListener(ChannelFutureListener.CLOSE);
+        //  } else {
+        //     ctx.flush();
+        // }
     }
 
 

@@ -1,6 +1,6 @@
 package com.silchenko.httpserver;
 
-
+import com.silchenko.httpserver.uri_handlers.UriHandlerBase;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelInitializer;
@@ -12,17 +12,16 @@ import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpServerCodec;
 
+import java.util.List;
+
 public class HttpServer {
 
-    private final HistoryHolder historyHolder = new HistoryHolder();
     private final int port;
+    private final List<? extends UriHandlerBase> handlers;
 
-    public HttpServer() {
+    public HttpServer(List<? extends UriHandlerBase> handlers) {
         this.port = 9999;
-    }
-
-    public HttpServer(int port) {
-        this.port = port;
+        this.handlers = handlers;
     }
 
     public int getPort() {
@@ -30,7 +29,7 @@ public class HttpServer {
     }
 
 
-    public void run() throws Exception {
+    public void start() throws Exception {
         EventLoopGroup bossGroup = new NioEventLoopGroup();
         EventLoopGroup workerGroup = new NioEventLoopGroup();
         try {
@@ -55,7 +54,7 @@ public class HttpServer {
         protected void initChannel(SocketChannel ch) {
             ch.pipeline().addLast(new HttpServerCodec());
             ch.pipeline().addLast("aggregator", new HttpObjectAggregator(1048576));
-            ch.pipeline().addLast("serverHandler", new ServerHandler(historyHolder));
+            ch.pipeline().addLast("serverHandler", new UriHandler(handlers));
         }
     }
 }
