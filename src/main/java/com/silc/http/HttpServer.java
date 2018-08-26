@@ -2,7 +2,7 @@ package com.silc.http;
 
 import com.silc.http.uri_handlers.UriHandlerBase;
 import io.netty.bootstrap.ServerBootstrap;
-import io.netty.channel.ChannelFuture;
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoopGroup;
@@ -16,20 +16,26 @@ import java.util.List;
 
 public class HttpServer {
 
+    private enum State {
+        NOT_STARTED,
+        RUNNING,
+        FAILED
+    }
+
     private final int port;
+    private Enum state;
     private final List<? extends UriHandlerBase> handlers;
 
     public HttpServer(List<? extends UriHandlerBase> handlers) {
         this.port = 9999;
         this.handlers = handlers;
+        this.state = State.NOT_STARTED;
     }
-
-    public int getPort() {
-        return port;
-    }
-
 
     public void start() throws Exception {
+        if (state == State.RUNNING) {
+            return;
+        }
         EventLoopGroup bossGroup = new NioEventLoopGroup();
         EventLoopGroup workerGroup = new NioEventLoopGroup();
         try {
@@ -39,10 +45,11 @@ public class HttpServer {
                     .childHandler(new HttpServerInitializer())
                     .childOption(ChannelOption.SO_KEEPALIVE, true);
 
-            ChannelFuture f = b.bind(port).sync();
-
-            f.channel().closeFuture().sync();
+            Channel ch = b.bind(port).sync().channel();
+            state = State.RUNNING;
+            ch.closeFuture().sync();
         } finally {
+            state = State.FAILED;
             workerGroup.shutdownGracefully();
             bossGroup.shutdownGracefully();
         }

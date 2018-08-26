@@ -2,8 +2,8 @@ package com.silc.http.uri_handlers;
 
 
 import com.google.common.base.Strings;
-import com.google.gson.Gson;
-import com.google.gson.JsonObject;
+import com.jayway.jsonpath.JsonPath;
+import com.jayway.jsonpath.PathNotFoundException;
 import com.silc.http.HistoryHolder;
 import com.silc.http.Mapped;
 import com.sun.istack.internal.Nullable;
@@ -40,17 +40,29 @@ public class UriDataHandler extends UriHandlerBase {
     }
 
     private void doGet(FullHttpRequest request, StringBuilder buff) {
-        HistoryHolder res = historyHolder;
+        HistoryHolder res = new HistoryHolder();
+        res.setHistory(historyHolder.getHistory());
 
         Map<String, List<String>> params = new QueryStringDecoder(request.uri()).parameters();
         if (!params.isEmpty()) {
             String timestamp = parseSingleParameter(params, "timestamp");
             String path = parseSingleParameter(params, "path");
             String value = parseSingleParameter(params, "value");
-            if (Strings.isNullOrEmpty(timestamp)) {
+            if (!Strings.isNullOrEmpty(timestamp)) {
                 res.setHistory(applyTimestamp(res.getHistory(), Long.parseLong(timestamp)));
             }
+            if (!Strings.isNullOrEmpty(path) && !Strings.isNullOrEmpty(value)) {
+                List<String> records = applyPathAndValue(res.getHistory(), path, value.replaceAll("\\+", " "));
+                res.setHistory(records);
+            }
         }
+        buff.append(res.getHistory());
+    }
+
+    private List<String> applyPathAndValue(List<String> data, String path, String value) {
+        return data.stream()
+                .filter(v -> parseValueByPath(v, path).equals(value))
+                .collect(Collectors.toList());
     }
 
     @Nullable
@@ -61,24 +73,34 @@ public class UriDataHandler extends UriHandlerBase {
 
     private List<String> applyTimestamp(List<String> data, long timestamp) {
         return data.stream()
-                .filter(v->parseTimeStamp(v) > timestamp)
+                .filter(v -> parseTimeStamp(v) > timestamp)
                 .collect(Collectors.toList());
     }
 
+    private String parseValueByPath(String data, String path) {
+        path = path.startsWith("$") ? path : "$." + path;
+        Object result = null;
+        try {
+            result = JsonPath.read(data, path);
+        } catch (PathNotFoundException ignore) {
+        }
+        return Optional.ofNullable(result).map(r -> r.toString()
+                .replaceAll("\"", "")
+                .replace("[", "")
+                .replace("]", ""))
+                .orElse("");
+    }
+
     private long parseTimeStamp(String record) {
-       return new Gson().fromJson(record, JsonObject.class)
-                .getAsJsonObject("systemDetails")
-                .get("clientTimestamp")
-                .getAsLong();
+        return Long.parseLong(JsonPath.read(record, "$.systemDetails.clientTimestamp"));
     }
 
     private void doPost(FullHttpRequest request, StringBuilder buff) {
-        buff.append(request.content());
-        if (request.headers().get("Content-type").equalsIgnoreCase(getContentType())) {
-            String json = request.content().toString(CharsetUtil.UTF_8);
-            if (!json.isEmpty()) {
-                historyHolder.addRecord(request.content().toString(CharsetUtil.UTF_8));
-                buff.append(historyHolder.getHistory());
+        String content = request.content().toString(CharsetUtil.UTF_8);
+        buff.append(content);
+        if (request.headers().get("Content-type").equals("application/json")) {
+            if (!content.isEmpty()) {
+                historyHolder.addRecord(content);
             }
         }
     }
