@@ -12,6 +12,8 @@ repositories {
 dependencies {
 
     compile group: 'io.netty', name: 'netty-all', version: '4.1.28.Final'
+    compile group: 'org.apache.commons', name: 'commons-lang3', version: '3.8'
+    compile group: 'javax.ws.rs', name: 'javax.ws.rs-api', version: '2.0'
     compile group: 'com.google.guava', name: 'guava', version: '11.0.2'
     compile(group: 'com.jayway.jsonpath', name: 'json-path', version: '2.4.0') {
         exclude group: 'org.ow2.asm'

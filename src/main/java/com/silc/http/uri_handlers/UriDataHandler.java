@@ -1,27 +1,27 @@
 package com.silc.http.uri_handlers;
 
-
-import com.google.common.base.Strings;
 import com.jayway.jsonpath.JsonPath;
 import com.jayway.jsonpath.PathNotFoundException;
-import com.silc.http.HistoryHolder;
 import com.silc.http.Mapped;
-import com.sun.istack.internal.Nullable;
 import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.QueryStringDecoder;
 import io.netty.util.CharsetUtil;
+import javafx.collections.ObservableList;
+import org.apache.commons.lang3.StringUtils;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import javax.annotation.Nullable;
+import javax.ws.rs.core.MediaType;
+import java.util.*;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 @Mapped(uri = "/data")
 public class UriDataHandler extends UriHandlerBase {
-    private final HistoryHolder historyHolder;
+    private final ObservableList<String> observableList;
 
-    public UriDataHandler(HistoryHolder historyHolder) {
-        this.historyHolder = historyHolder;
+    public UriDataHandler(ObservableList<String> observableList) {
+        this.observableList = observableList;
     }
 
     @Override
@@ -35,50 +35,43 @@ public class UriDataHandler extends UriHandlerBase {
                 doPost(request, buff);
                 break;
             default:
-                throw new UnsupportedOperationException();
+                throw new UnsupportedOperationException("HttpRequest is not supported: " + request.method().name());
         }
     }
 
     private void doGet(FullHttpRequest request, StringBuilder buff) {
-        HistoryHolder res = new HistoryHolder();
-        res.setHistory(historyHolder.getHistory());
-
+        List<String> filterResult = new ArrayList<>();
         Map<String, List<String>> params = new QueryStringDecoder(request.uri()).parameters();
         if (!params.isEmpty()) {
             String timestamp = parseSingleParameter(params, "timestamp");
             String path = parseSingleParameter(params, "path");
             String value = parseSingleParameter(params, "value");
-            if (!Strings.isNullOrEmpty(timestamp)) {
-                res.setHistory(applyTimestamp(res.getHistory(), Long.parseLong(timestamp)));
-            }
-            if (!Strings.isNullOrEmpty(path) && !Strings.isNullOrEmpty(value)) {
-                List<String> records = applyPathAndValue(res.getHistory(), path, value.replaceAll("\\+", " "));
-                res.setHistory(records);
+
+            if (!StringUtils.isBlank(path) && !StringUtils.isBlank(value)) {
+                Predicate<String> filter = data -> parseValueByPath(data, path).equals(value);
+
+                String res = HandlerUtils.find(observableList, v -> {
+                    if (!StringUtils.isBlank(timestamp)) {
+                        if (parseTimeStamp(v) < Long.parseLong(timestamp))
+                            return false;
+                    }
+                    return filter.test(v);
+                }, 10000);
+
+                filterResult = Optional.ofNullable(res)
+                        .map(Collections::singletonList)
+                        .orElse(Collections.emptyList());
             }
         }
-        buff.append(res.getHistory());
-    }
-
-    private List<String> applyPathAndValue(List<String> data, String path, String value) {
-        return data.stream()
-                .filter(v -> parseValueByPath(v, path).equals(value))
-                .collect(Collectors.toList());
+        buff.append(filterResult.stream().collect(Collectors.joining(System.lineSeparator())));
     }
 
     @Nullable
     private String parseSingleParameter(Map<String, List<String>> params, String name) {
         return Optional.ofNullable(params.get(name)).map(v -> v.get(0)).orElse(null);
-
-    }
-
-    private List<String> applyTimestamp(List<String> data, long timestamp) {
-        return data.stream()
-                .filter(v -> parseTimeStamp(v) > timestamp)
-                .collect(Collectors.toList());
     }
 
     private String parseValueByPath(String data, String path) {
-        path = path.startsWith("$") ? path : "$." + path;
         Object result = null;
         try {
             result = JsonPath.read(data, path);
@@ -92,16 +85,15 @@ public class UriDataHandler extends UriHandlerBase {
     }
 
     private long parseTimeStamp(String record) {
-        return Long.parseLong(JsonPath.read(record, "$.systemDetails.clientTimestamp"));
+        return JsonPath.read(record, "$.systemDetails.clientTimestamp");
     }
 
     private void doPost(FullHttpRequest request, StringBuilder buff) {
         String content = request.content().toString(CharsetUtil.UTF_8);
         buff.append(content);
-        if (request.headers().get("Content-type").equals("application/json")) {
-            if (!content.isEmpty()) {
-                historyHolder.addRecord(content);
-            }
+        if (request.headers().get(HttpHeaderNames.CONTENT_TYPE).equals(MediaType.APPLICATION_JSON) &&
+                !content.isEmpty()) {
+            observableList.add(content);
         }
     }
 }
