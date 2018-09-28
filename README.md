@@ -3,7 +3,7 @@
 Example: 
 
 ```
-List<? extends UriHandlerBase> handlerBases = Arrays.asList(new UriDataHandler(new HistoryHolder()));
+List<? extends UriHandlerBase> handlerBases = Arrays.asList(new UriDataHandler());
         new HttpServer(handlerBases).start();
 ```
    
